@@ -1,0 +1,5 @@
+<!DOCTYPE Config
+[
+<!ELEMENT Config (CredentialsFile?)>
+<!ELEMENT CredentialsFile (#PCDATA)>
+]>

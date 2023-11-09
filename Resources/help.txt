@@ -1,0 +1,25 @@
+Description:
+This program create or delete TXT records in WEDOS DNS servers via WAPI. Usage:
+wapi-txt.exe [options] [<command> <arg1> <arg2> <arg3>]
+
+Options:
+--set wapi_credentials  Set access information for WAPI interface
+--config <file>         Path to config file
+--lets-secure           Program will works with txt related record only. 
+--no-check              Do not check command's arguments
+--version               Show version information
+--help                  Show help and usage information
+--EULA                  Show license agreement.
+
+Commands:
+create <arg1> <arg2> <arg3>
+delete <arg1> <arg2> <arg3>
+
+Examples:
+Create record:
+wapi-txt.exe create www.example.com _acme-challenge.www.example.com
+ql4ykjsbqCB_9SVBl_ZvxhGuMWpSVT2Qs3wgN
+
+Delete record:
+wapi-txt.exe delete www.example.com _acme-challenge.www.example.com
+ql4ykjsbqCB_9SVBl_ZvxhGuMWpSVT2Qs3wgN
