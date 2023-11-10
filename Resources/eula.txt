@@ -1,3 +1,5 @@
+MIT License
+
 Copyright (c) 2023 Jan Angeloviè
 http://www.andevel.com/WAPI-TXT/
 info@andevel.com
