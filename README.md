@@ -77,7 +77,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Product Name Screen Shot][product-screenshot]](https://example.com)
+[![WAPI-TXT Screen Shot][product-screenshot]](https://www.andevel.com/wapi-txt/)
 
 
 
@@ -87,7 +87,7 @@
 
 ### Built With
 
-* [![Product Name Screen Shot][net-shield]]([net-url])
+* [![Runtime][net-shield]][net-url]
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -119,7 +119,7 @@ To get a local copy up and running follow these simple example steps.
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-For information about program usage, please refer to the [www.andevel.com/wapi-text/](https://www.andevel.com/wapi-text/)
+For information about program usage, please refer to the [www.andevel.com/wapi-txt/](https://www.andevel.com/wapi-txt/)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
