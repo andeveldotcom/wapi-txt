@@ -1,7 +1,9 @@
-﻿Imports System.IO
+﻿Imports System.Diagnostics
+Imports System.IO
 Imports System.Net
 Imports System.Net.Http
 Imports System.Reflection
+Imports System.Security
 Imports System.Security.Cryptography
 Imports System.Text
 Imports System.Text.RegularExpressions
@@ -122,7 +124,7 @@ Public Class Check
     ''' Returns a boolean value. If the input string contains only valid characters, it returns True. Otherwise, it returns False.
     ''' </returns>
     Public Shared Function ContainOnlyValidCharacters(contentType As ContentType, inputString As String) As Boolean
-        Dim validChars = My.Resources.idna_chars_txt
+        Dim validChars As String = ResourceLoader.GetStringResource("idna-chars.txt")
         Dim allowedCodesArray As String() = validChars.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.RemoveEmptyEntries)
         Dim allowedCodesArrayList As New ArrayList(allowedCodesArray)
         If contentType = ContentType.TxtValue Then
@@ -177,11 +179,11 @@ Public Class Domain
     Public Sub New(ByVal domainName As String)
         Dim splitName = domainName.Split("."c)
         OriginalName = domainName
-        MaxLevel = splitName.Count
-        For i = 1 To splitName.Count
+        MaxLevel = splitName.Length
+        For i = 1 To splitName.Length
             Dim domLevel As New DomainLevel With {
-                    .FullName = String.Join("."c, splitName.Skip(splitName.Count - i)),
-                    .Label = splitName.ElementAt(splitName.Count - i)}
+                    .FullName = String.Join("."c, splitName.Skip(splitName.Length - i)),
+                    .Label = splitName.ElementAt(splitName.Length - i)}
             _levelDict.Add(i, domLevel)
         Next
     End Sub
@@ -218,7 +220,7 @@ End Class
 Module Configuration
 
     Public AppFolder = AppContext.BaseDirectory
-    Public AppConfig As New Config With {.CredentialsFile = AppFolder & "wapi-txt.sec"}
+    Public AppConfig As New Config With {.CredentialsFile = Path.Combine(AppFolder, "wapi-txt.sec")}
     Public WapiCredentials As New WapiCredentials
 
     ''' <summary>
@@ -228,7 +230,7 @@ Module Configuration
     ''' <returns>The transformed XML document.</returns>
     Public Function TransformXmlWithXslt(inputXml As XDocument) As XDocument
 
-        Dim xsltString As String = My.Resources.parameters_xslt
+        Dim xsltString As String = ResourceLoader.GetStringResource("parameters.xslt")
         Dim xslt As New XslCompiledTransform()
 
         Using reader As XmlReader = XmlReader.Create(New StringReader(xsltString))
@@ -249,7 +251,7 @@ Module Configuration
         Close($"Validation Error: {e.Message}")
     End Sub
     Private Sub Serializer_UnknownNode(sender As Object, e As XmlNodeEventArgs)
-        Close($"Unknown Node: {e.Name}\t{e.Text}")
+        Close($"Unknown Node: {e.Name}	{e.Text}")
     End Sub
 
     Private Sub Serializer_UnknownAttribute(sender As Object, e As XmlAttributeEventArgs)
@@ -258,11 +260,23 @@ Module Configuration
     End Sub
     ''' <summary>
     ''' Reads credentials from a file and stores them in the Configuration.WapiCredentials property.
+    ''' For .NET Framework (NET462) the file is decrypted using DPAPI.
+    ''' For .NET 8 (NET8_0) the file is read as plain XML (no decryption).
     ''' </summary>
-
     Sub ReadCredentialsFromFile()
+#If NET462 Then
         Dim xmlText = DecryptDataFromFile(DataProtectionScope.LocalMachine, AppConfig.CredentialsFile)
-
+#ElseIf NET8_0 Then
+         Dim xmlText As String = ""
+         If Not File.Exists(AppConfig.CredentialsFile) Then
+             Close($"Credentials file ({AppConfig.CredentialsFile}) does not exist.")
+         End If
+         Try
+             xmlText = File.ReadAllText(AppConfig.CredentialsFile, Encoding.UTF8)
+         Catch ex As Exception
+             Close($"Loading credentials file failed: {ex.Message}")
+         End Try
+#End If
         Try
             Using reader As New StringReader(xmlText)
                 Dim serializer As New XmlSerializer(GetType(WapiCredentials))
@@ -289,18 +303,18 @@ Module Configuration
         Try
             If File.Exists(filePath) Then
                 Dim settings As New XmlReaderSettings With {
-                    .XmlResolver = New XmlUrlResolver,
-                    .DtdProcessing = DtdProcessing.Parse,
-                    .ValidationType = ValidationType.DTD,
-                    .NameTable = New NameTable,
-                    .IgnoreWhitespace = True
-                }
+                     .XmlResolver = New XmlUrlResolver,
+                     .DtdProcessing = DtdProcessing.Parse,
+                     .ValidationType = ValidationType.DTD,
+                     .NameTable = New NameTable,
+                     .IgnoreWhitespace = True
+                 }
                 AddHandler settings.ValidationEventHandler, AddressOf ValidationCallBack
                 Dim sr1 As New StreamReader(filePath)
 
-                Dim dtd As String = My.Resources.config_dtd
+                Dim dtd As String = ResourceLoader.GetStringResource("config.dtd")
                 Dim xml As String = sr1.ReadToEnd
-                Dim concatenated As String = dtd & vbNewLine & xml
+                Dim concatenated As String = dtd & System.Environment.NewLine & xml
 
                 sr1.Close()
 
@@ -326,6 +340,37 @@ Module Configuration
     End Sub
 End Module
 
+Module ResourceLoader
+    ' Loads text resources from assembly manifest or falls back to Resources folder on disk
+    Public Function GetStringResource(resourceFileName As String) As String
+        If String.IsNullOrEmpty(resourceFileName) Then Return String.Empty
+        Dim asm = Assembly.GetExecutingAssembly()
+        Dim resNames = asm.GetManifestResourceNames()
+        ' Try to find resource by file name suffix (case-insensitive)
+        Dim match = resNames.FirstOrDefault(Function(n) n.EndsWith(resourceFileName, StringComparison.OrdinalIgnoreCase))
+        If match IsNot Nothing Then
+            Using s = asm.GetManifestResourceStream(match)
+                If s IsNot Nothing Then
+                    Using sr As New StreamReader(s, Encoding.UTF8)
+                        Return sr.ReadToEnd()
+                    End Using
+                End If
+            End Using
+        End If
+
+        ' Fallback: try to read from Resources folder next to app
+        Dim filePath = Path.Combine(AppContext.BaseDirectory, "Resources", resourceFileName)
+        If File.Exists(filePath) Then
+            Return File.ReadAllText(filePath, Encoding.UTF8)
+        End If
+
+        Return String.Empty
+    End Function
+
+
+End Module
+
+
 Module App
 
     Public Enum Result
@@ -334,9 +379,9 @@ Module App
     End Enum
 
     Private ReadOnly EnumToStringMap As New Dictionary(Of Result, String) From {
-        {Result.Ok, "OK"},
-        {Result.Failed, "Failed"}
-     }
+         {Result.Ok, "OK"},
+         {Result.Failed, "Failed"}
+      }
 
     Public Function ResultText(res As Result) As String
         Return EnumToStringMap(res)
@@ -346,8 +391,66 @@ Module App
         Return (message).PadRight(Math.Max(80 - ResultText(result).Length, message.Length + 3), "."c) & ResultText(result)
     End Function
 
+    ' Unified severity enum used throughout the code; mapped to platform specifics inside WriteToLog
+    Public Enum LogSeverity
+        Information
+        Warning
+        [Error]
+    End Enum
 
+    ' Returns application version string. Prefers AssemblyInformationalVersion, falls back to assembly version or file version.
+    Public Function GetAppVersion() As String
+        Try
+            Dim assembliesToTry As New List(Of Assembly) From {
+            Assembly.GetEntryAssembly(),
+            Assembly.GetExecutingAssembly()
+        }
 
+            For Each asm In assembliesToTry
+                If asm Is Nothing Then Continue For
+
+                ' 1) informational version
+                Dim infoAttr = asm.GetCustomAttribute(Of Reflection.AssemblyInformationalVersionAttribute)()
+                If infoAttr IsNot Nothing AndAlso Not String.IsNullOrEmpty(infoAttr.InformationalVersion) Then
+                    Return infoAttr.InformationalVersion
+                End If
+
+                ' 2) assembly version
+                If asm.GetName() IsNot Nothing AndAlso asm.GetName().Version IsNot Nothing Then
+                    Return asm.GetName().Version.ToString()
+                End If
+
+                ' 3) file version from assembly location (may be empty for single-file/trimming)
+                Try
+                    If Not String.IsNullOrEmpty(asm.Location) Then
+                        Dim vi = FileVersionInfo.GetVersionInfo(asm.Location)
+                        If Not String.IsNullOrEmpty(vi.FileVersion) Then
+                            Return vi.FileVersion
+                        End If
+                    End If
+                Catch
+                    ' ignore
+                End Try
+            Next
+
+            ' 4) fallback to current process main module file version
+            Try
+                Dim procFile = Process.GetCurrentProcess().MainModule?.FileName
+                If Not String.IsNullOrEmpty(procFile) Then
+                    Dim viProc = FileVersionInfo.GetVersionInfo(procFile)
+                    If Not String.IsNullOrEmpty(viProc.FileVersion) Then
+                        Return viProc.FileVersion
+                    End If
+                End If
+            Catch
+                ' ignore
+            End Try
+        Catch
+            ' ignore
+        End Try
+
+        Return "unknown"
+    End Function
 
     ''' <summary>
     ''' Closes the application and writes an error message to the console or a specified output.
@@ -360,7 +463,7 @@ Module App
         Else
             Console.Error.WriteLine(toConsole)
         End If
-        WriteToLog(errMessage, EventLogEntryType.Error)
+        WriteToLog(errMessage, LogSeverity.Error)
 #If DEBUG Then
         Console.WriteLine("Press any key...")
         Console.ReadKey()
@@ -372,26 +475,71 @@ Module App
 
 
 
-
-
-    Sub WriteToLog(eventMessage As String, eventType As EventLogEntryType)
+#If NET462 Then
+    Sub WriteToLog(eventMessage As String, eventType As LogSeverity)
         Try
-            ' Create a new instance of the EventLog class and assign it to the variable eventLog
+            Dim entryType As EventLogEntryType = EventLogEntryType.Information
+            Select Case eventType
+                Case LogSeverity.Error
+                    entryType = EventLogEntryType.Error
+                Case LogSeverity.Warning
+                    entryType = EventLogEntryType.Warning
+                Case LogSeverity.Information
+                    entryType = EventLogEntryType.Information
+            End Select
+
             Dim eventLog = New EventLog("Application") With {
                 .Source = "Application"
             }
 
-            ' Write an entry to the event log with the message "WAPI-TXT: {eventMessage}" and the specified EventType
-            eventLog.WriteEntry($"WAPI-TXT: {eventMessage}", eventType)
+            eventLog.WriteEntry($"WAPI-TXT: {eventMessage}", entryType)
 
         Catch ex As Exception
-            ' If an exception occurs, write the exception message to the error console
             Console.Error.WriteLine($"[Logging]: {ex.Message}")
-
-            ' Exit the application with a status code of 1
             Environment.Exit(1)
         End Try
     End Sub
+
+#ElseIf NET8_0 Then
+
+    Sub WriteToLog(eventMessage As String, eventType As LogSeverity)
+        Try
+            Dim priority As String = "info"
+            Select Case eventType
+                Case LogSeverity.Error
+                    priority = "err"
+                Case LogSeverity.Warning
+                    priority = "warning"
+                Case LogSeverity.Information
+                    priority = "info"
+            End Select
+
+            Dim loggerArgs As String = $"-p user.{priority} ""WAPI-TXT: {eventMessage}"""
+
+            Try
+                Dim psi As New System.Diagnostics.ProcessStartInfo("logger", loggerArgs) With {
+                    .RedirectStandardOutput = True,
+                    .RedirectStandardError = True,
+                    .UseShellExecute = False,
+                    .CreateNoWindow = True
+                }
+                Using proc As System.Diagnostics.Process = System.Diagnostics.Process.Start(psi)
+                    If proc IsNot Nothing Then
+                        proc.WaitForExit(2000)
+                    End If
+                End Using
+            Catch ex As Exception
+                Console.Error.WriteLine($"[Logging][logger fallback]: {ex.Message}")
+                Console.Error.WriteLine($"WAPI-TXT: {eventMessage}")
+            End Try
+
+        Catch ex As Exception
+            Console.Error.WriteLine($"[Logging]: {ex.Message}")
+            Environment.Exit(1)
+        End Try
+    End Sub
+
+#End If
 
 End Module
 
@@ -438,7 +586,7 @@ Module WapiTxt
         If e.Severity = XmlSeverityType.Error Then
             Close("Validation Error: " & e.Message, "Parameters validation failed")
         Else
-            WriteToLog($"Parameters validation error: {e.Message}", EventLogEntryType.Warning)
+            WriteToLog($"Parameters validation error: {e.Message}", LogSeverity.Warning)
         End If
     End Sub
 
@@ -449,7 +597,8 @@ Module WapiTxt
     ''' <param name="xmlArgs">An XDocument that contains the parameters to be validated.</param>
     Public Sub ValidateParameters(xmlArgs As XDocument)
         Dim xmlTransArgs = TransformXmlWithXslt(xmlArgs)
-        Dim schema As XmlSchema = XmlSchema.Read(New StringReader(My.Resources.parameters_xsd), AddressOf ParamsValidationEventHandler)
+        Dim xsdText As String = ResourceLoader.GetStringResource("parameters.xsd")
+        Dim schema As XmlSchema = XmlSchema.Read(New StringReader(xsdText), AddressOf ParamsValidationEventHandler)
 
         Dim settings As New XmlReaderSettings()
         settings.Schemas.Add(schema)
@@ -468,7 +617,7 @@ Module WapiTxt
         End Try
     End Sub
     Sub Main(args As String())
-        WriteToLog("Application start.", EventLogEntryType.Information)
+        WriteToLog("Application start.", LogSeverity.Information)
         If args.Length < 1 Then
             WriteHelpToOutput()
         Else
@@ -487,7 +636,7 @@ Module WapiTxt
             Dim cmdCreate As Boolean = xmlArgs.Descendants("command-create").Any()
             Dim cmdDelete As Boolean = xmlArgs.Descendants("command-delete").Any()
             Dim optNoCheck As Boolean = xmlArgs.Descendants("option-no-check").Any()
-            Dim optLetsSecure As Boolean = xmlArgs.Descendants("option-no-check").Any()
+            Dim optLetsSecure As Boolean = xmlArgs.Descendants("option-lets-secure").Any()
 
             If optConfig Then
                 configFile = xmlArgs.XPathSelectElement("//option-config/following-sibling::arg[1]")?.Value
@@ -577,7 +726,7 @@ Module WapiTxt
                 If responseCommitChanges.Result = "OK" Then
                     Console.WriteLine(RecordRow($"Commit changes for domain {foundDomain}.", Result.Ok))
                 Else
-                    Close($"[Commit changes] Request failed: {responseDomains.Code} : {responseDomains.Result}")
+                    Close($"[Commit changes] Request failed: {responseCommitChanges.Code} : {responseCommitChanges.Result}")
                 End If
 
             ElseIf optHelp Then
@@ -586,10 +735,8 @@ Module WapiTxt
                 WriteEulaToOutput()
 
             ElseIf optVersion Then
-                Dim assembly As Assembly = Assembly.GetExecutingAssembly()
-                Dim versionInfo As FileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location)
-                Dim fileVersion As String = versionInfo.FileVersion()
-                Console.WriteLine(fileVersion)
+                Console.WriteLine(GetAppVersion())
+
             ElseIf optSet Then
                 ParseAndProcessConfigXml(configFile)
                 Dim toSet As String = xmlArgs.XPathSelectElement("//option-set/following-sibling::arg[1]")?.Value
@@ -609,7 +756,12 @@ Module WapiTxt
                             serializer.Serialize(stringWriter, credentials)
                             xmlString = stringWriter.ToString()
                         End Using
+#If NET462 Then
                         EncryptDataToFile(xmlString, DataProtectionScope.LocalMachine, AppConfig.CredentialsFile)
+#ElseIf NET8_0 Then
+                        SaveDataToFile(xmlString, AppConfig.CredentialsFile)
+#End If
+
                         Console.WriteLine($"Credentials was saved to file {AppConfig.CredentialsFile}.")
                         Const waitTime As Integer = 5
 
@@ -639,9 +791,6 @@ Module WapiTxt
         Console.ReadKey()
 #End If
     End Sub
-
-
-
 
 
 
@@ -783,10 +932,16 @@ Module WapiTxt
         End If
     End Function
     Public Sub WriteHelpToOutput()
-        Console.Write(My.Resources.help_txt)
+#If NET462 Then
+        Dim h As String = ResourceLoader.GetStringResource("help-win.txt")
+#ElseIf NET8_0 Then
+        Dim h As String = ResourceLoader.GetStringResource("help-linux.txt")
+#End If
+
+        Console.Write(h)
     End Sub
     Public Sub WriteEulaToOutput()
-        Console.Write(My.Resources.eula_txt)
+        Console.Write(ResourceLoader.GetStringResource("eula.txt"))
     End Sub
     ''' <summary>
     ''' This function checks if there is exactly one active domain in the provided XML string. 
@@ -834,18 +989,25 @@ Module WapiTxt
     ''' A WapiResponse object with either the parsed "code" and "result" values from the input string, or a default error message.
     ''' </returns>
     Public Function CheckResult(result As String) As WapiResponse
-        _xmlData = XDocument.Parse(result)
+        If String.IsNullOrWhiteSpace(result) Then
+            Return New WapiResponse With {.Code = "0", .Result = "No response or empty result."}
+        End If
 
-        Dim childList As IEnumerable(Of XElement)
-        childList = (From ed In _xmlData.Root.Descendants
-                     Where ed.Name = "code" Or ed.Name = "result"
-                     Select ed)
+        Try
+            _xmlData = XDocument.Parse(result)
+        Catch ex As Exception
+            Return New WapiResponse With {.Code = "0", .Result = $"Invalid XML response: {ex.Message}"}
+        End Try
+
+        Dim childList = (From ed In _xmlData.Root.Descendants()
+                         Where ed.Name.LocalName = "code" Or ed.Name.LocalName = "result"
+                         Select ed).ToList()
+
         If childList.Count = 2 Then
             Return New WapiResponse With {.Code = childList(0).Value, .Result = childList(1).Value}
         Else
-            Return New WapiResponse With {.Code = 0, .Result = "Unexpected error."}
+            Return New WapiResponse With {.Code = "0", .Result = "Unexpected error."}
         End If
-
     End Function
 
     REM wapi.ClientPrepare()
@@ -902,7 +1064,8 @@ Module WapiTxt
         End Function
         Public Async Function GetRecords(domain As String) As Task(Of String)
             Try
-                Return Await SendRequest(_auth, "dns-rows-list", "<domain>" & domain & "</domain>")
+                Dim domainEsc = SecurityElement.Escape(domain)
+                Return Await SendRequest(_auth, "dns-rows-list", $"<domain>{domainEsc}</domain>")
             Catch e As Exception
                 Console.WriteLine(e.Message)
                 Return ""
@@ -910,7 +1073,8 @@ Module WapiTxt
         End Function
         Public Async Function CommitChanges(domain As String) As Task(Of String)
             Try
-                Return Await SendRequest(_auth, "dns-domain-commit", $"<name>{domain}</name>")
+                Dim domainEsc = SecurityElement.Escape(domain)
+                Return Await SendRequest(_auth, "dns-domain-commit", $"<name>{domainEsc}</name>")
             Catch e As Exception
                 Console.WriteLine(e.Message)
                 Return ""
@@ -918,11 +1082,14 @@ Module WapiTxt
         End Function
         Public Async Function CreateTxtRecord(domain As String, name As String, value As String) As Task(Of String)
             Try
-                Return Await SendRequest(_auth, "dns-row-add", $"<domain>{domain}</domain>
-                  <name>{name}</name>
+                Dim domainEsc = SecurityElement.Escape(domain)
+                Dim nameEsc = SecurityElement.Escape(name)
+                Dim valueEsc = SecurityElement.Escape(value)
+                Return Await SendRequest(_auth, "dns-row-add", $"<domain>{domainEsc}</domain>
+                  <name>{nameEsc}</name>
                   <ttl>300</ttl>
                   <type>TXT</type>
-                  <rdata>{value}</rdata>")
+                  <rdata>{valueEsc}</rdata>")
             Catch e As Exception
                 Console.Error.WriteLine(e.Message)
                 Return ""
@@ -930,8 +1097,10 @@ Module WapiTxt
         End Function
         Public Async Function DeleteTxtRecord(domain As String, id As String) As Task(Of String)
             Try
-                Return Await SendRequest(_auth, "dns-row-delete", $"<domain>{domain}</domain>
-                  <row_id>{id}</row_id>")
+                Dim domainEsc = SecurityElement.Escape(domain)
+                Dim idEsc = SecurityElement.Escape(id)
+                Return Await SendRequest(_auth, "dns-row-delete", $"<domain>{domainEsc}</domain>
+                  <row_id>{idEsc}</row_id>")
             Catch e As Exception
                 Console.Error.WriteLine(e.Message)
                 Return ""
@@ -941,7 +1110,9 @@ Module WapiTxt
             Dim encodedString As String = Await data.ReadAsStringAsync()
             Dim encoding As Encoding = Encoding.UTF8
             Dim unesco = Uri.UnescapeDataString(encodedString)
-            If unesco.Substring(0, 8) = "request=" Then unesco = unesco.Remove(0, 8)
+            If unesco.Length >= 8 AndAlso unesco.StartsWith("request=", StringComparison.Ordinal) Then
+                unesco = unesco.Remove(0, 8)
+            End If
             Dim a = encoding.GetByteCount(unesco)
             Return a
         End Function
@@ -981,12 +1152,17 @@ Module WapiTxt
 
 End Module
 
+
+
+
 Module SecretProtection
+#If NET462 Then
+
     Sub EncryptDataToFile(ByVal stringToProtect As String, ByVal scope As DataProtectionScope, ByVal fileName As String)
         If stringToProtect Is Nothing OrElse stringToProtect.Length <= 0 Then Throw New ArgumentNullException("StringToProtect")
         If fileName Is Nothing Then Throw New ArgumentNullException("fileName")
-        Dim bytesToProtect As Byte() = UnicodeEncoding.ASCII.GetBytes(stringToProtect)
-        Dim entropy As Byte() = UnicodeEncoding.ASCII.GetBytes("yQw0gTRxNuJ1/Qf5dN2v5KwdXQ1KSXaB")
+        Dim bytesToProtect As Byte() = Encoding.ASCII.GetBytes(stringToProtect)
+        Dim entropy As Byte() = Encoding.ASCII.GetBytes("yQw0gTRxNuJ1/Qf5dN2v5KwdXQ1KSXaB")
         Dim encryptedData As Byte() = ProtectedData.Protect(bytesToProtect, entropy, scope)
         Try
             File.WriteAllBytes(fileName, encryptedData)
@@ -998,7 +1174,7 @@ Module SecretProtection
 
 
     Function DecryptDataFromFile(ByVal scope As DataProtectionScope, ByVal fileName As String) As String
-        Dim entropy As Byte() = UnicodeEncoding.ASCII.GetBytes("yQw0gTRxNuJ1/Qf5dN2v5KwdXQ1KSXaB")
+        Dim entropy As Byte() = Encoding.ASCII.GetBytes("yQw0gTRxNuJ1/Qf5dN2v5KwdXQ1KSXaB")
         Dim bytesToUnprotect As Byte()
         Dim unencryptedData As Byte() = New Byte(0) {}
         Try
@@ -1012,7 +1188,76 @@ Module SecretProtection
             Close("No data.")
 
         End If
-        Return UnicodeEncoding.ASCII.GetString(unencryptedData)
+        Return Encoding.ASCII.GetString(unencryptedData)
     End Function 'DecryptDataFromStream 
+
+#ElseIf NET8_0 Then
+
+    Sub SaveDataToFile(ByVal xmlString As String, ByVal fileName As String)
+        Try
+            File.WriteAllText(fileName, xmlString, Encoding.UTF8)
+        Catch ex As Exception
+            Close($"Saving credentials to file failed: {ex.Message}")
+        End Try
+    End Sub
+    Function LoadDataFromFile(ByVal fileName As String) As String
+        Try
+            Return File.ReadAllText(fileName, Encoding.UTF8)
+        Catch ex As Exception
+            Close($"Load data from file failed: {ex.Message}")
+            Return ""
+        End Try
+    End Function 'DecryptDataFromStream 
+
+#End If
 End Module 'SecretProtection
+
+Module Module1
+    ''' <summary>
+    ''' Startup wrapper used by the project when the startup object is set to "wapi_txt.Module1".
+    ''' It forwards the command line arguments (excluding the executable path) to `WapiTxt.Main`.
+    ''' </summary>
+    Sub Main()
+        Dim cmdArgs As String() = Environment.GetCommandLineArgs()
+        Dim argsArray As String()
+        If cmdArgs.Length > 1 Then
+            ReDim argsArray(cmdArgs.Length - 2)
+            Array.Copy(cmdArgs, 1, argsArray, 0, cmdArgs.Length - 1)
+        Else
+            argsArray = New String() {}
+        End If
+
+        WapiTxt.Main(argsArray)
+    End Sub
+End Module
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
