@@ -278,7 +278,7 @@ Module Configuration
          End Try
 #End If
         Try
-            Using reader As New StringReader(xmlText)
+            Using reader As New StringReader(XmlText)
                 Dim serializer As New XmlSerializer(GetType(WapiCredentials))
                 WapiCredentials = DirectCast(serializer.Deserialize(reader), WapiCredentials)
             End Using
