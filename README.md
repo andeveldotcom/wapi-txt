@@ -102,11 +102,12 @@ To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
 
-.NET Framework 4.6.2
+.NET Framework 4.6.2 (Windows)
+.NET 8.0 (Linux)
 
 ### Installation
 
-1. Make sure your Visual Studio is supporting development applications for .NET Framework 4.6.2
+1. Make sure your Visual Studio is supporting development applications for .NET Framework 4.6.2 and .NET 8.0
 2. Clone the repo
    ```sh
    git clone https://github.com/andeveldotcom/wapi-txt.git
