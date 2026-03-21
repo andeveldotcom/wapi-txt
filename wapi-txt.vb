@@ -895,8 +895,8 @@ Module WapiTxt
         Const pattern As String = "[" & "=!""#()+,-./:;<=>?@[\]^_`{|}~*]"
         Dim special As New Regex(pattern)
 
-        If pwd.Length < minLength Then passwordIssues.Add($"- Must be at least {minLength} character{(If(minLength > 1, "s", ""))} long.")
-        If pwd.Length > maxLength Then passwordIssues.Add($"- Must not exceed {maxLength} character{(If(maxLength > 1, "s", ""))} in length.")
+        If pwd.Length < minLength Then passwordIssues.Add($"- Must be at least {minLength} character{(If(minLength > 1, "s", ""))} long (entered: {pwd.Length}).")
+        If pwd.Length > maxLength Then passwordIssues.Add($"- Must not exceed {maxLength} character{(If(maxLength > 1, "s", ""))} in length (entered: {pwd.Length}).")
         If upper.Matches(pwd).Count < numUpper Then passwordIssues.Add($"- Must contain at least {numUpper} uppercase letter{(If(numUpper > 1, "s", ""))}.")
         If lower.Matches(pwd).Count < numLower Then passwordIssues.Add($"- Must contain at least {numLower} lowercase letter{(If(numLower > 1, "s", ""))}.")
         If number.Matches(pwd).Count < numNumbers Then passwordIssues.Add($"- Must contain at least {numNumbers} numeric character{(If(numNumbers > 1, "s", ""))}.")
