@@ -77,7 +77,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![WAPI-TXT Screen Shot][product-screenshot]](https://www.andevel.com/wapi-txt/)
+[![WAPI-TXT Screen Shot][product-screenshot]](https://www.andevel.com/wapi-txt/) [![WAPI-TXT Screen Shot][product-screenshot-linux]](https://www.andevel.com/wapi-txt/)
 
 
 
@@ -103,6 +103,7 @@ To get a local copy up and running follow these simple example steps.
 ### Prerequisites
 
 .NET Framework 4.6.2 (Windows)
+
 .NET 8.0 (Linux)
 
 ### Installation
@@ -193,6 +194,7 @@ Project web: [https://www.andevel.com/wapi-txt](https://www.andevel.com/wapi-txt
 [license-shield]: https://img.shields.io/github/license/andeveldotcom/wapi-txt.svg?style=for-the-badge
 [license-url]: https://github.com/andeveldotcom/wapi-txt/blob/master/LICENSE.txt
 [product-screenshot]: images/WAPI-TXT-screen-detail.png
+[product-screenshot-linux]: images/wapi-txt-screen-detail-linux.png
 [net-shield]: https://img.shields.io/badge/.NET-Framework%204.6.2-blue
 [net-url]: https://dotnet.microsoft.com/en-us/download/dotnet-framework/net462
 
