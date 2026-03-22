@@ -88,6 +88,7 @@
 ### Built With
 
 * [![Runtime][net-shield]][net-url]
+* * [![Runtime][net80-shield]][net80-url]
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -196,5 +197,7 @@ Project web: [https://www.andevel.com/wapi-txt](https://www.andevel.com/wapi-txt
 [product-screenshot]: images/WAPI-TXT-screen-detail.png
 [product-screenshot-linux]: images/wapi-txt-screen-detail-linux.png
 [net-shield]: https://img.shields.io/badge/.NET-Framework%204.6.2-blue
+[net80-shield]: https://img.shields.io/badge/.NET%208.0-blue
 [net-url]: https://dotnet.microsoft.com/en-us/download/dotnet-framework/net462
+[net80-url]: https://dotnet.microsoft.com/en-us/download/dotnet/8.0
 
